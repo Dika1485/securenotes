@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureNotes – Your Private Vault</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #151820;
+      --surface2:  #1c2030;
+      --border:    #252a3a;
+      --accent:    #5b8dee;
+      --accent2:   #9b6dff;
+      --danger:    #e05260;
+      --success:   #4ecb8d;
+      --warn:      #f5a623;
+      --text:      #e8eaf0;
+      --text2:     #8891a8;
+      --text3:     #4a5270;
+      --radius:    12px;
+      --font:      'Inter', sans-serif;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes shimmer {
+      0%  { background-position: -400px 0; }
+      100%{ background-position:  400px 0; }
+    }
+    @keyframes pulse { 0%,100%{opacity:.6;} 50%{opacity:1;} }
+
+    .fade-in { animation: fadeIn .25s ease; }
+
+    /* Button base */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px; border: none;
+      font-family: var(--font); font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: all .15s ease; white-space: nowrap;
+      outline: none;
+    }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #4a7de0; box-shadow: 0 0 0 3px rgba(91,141,238,.25); }
+    .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #c9404e; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-icon { padding: 8px; border-radius: 8px; background: transparent; border: 1px solid var(--border); color: var(--text2); cursor: pointer; transition: all .15s; }
+    .btn-icon:hover { background: var(--surface2); color: var(--text); }
+
+    /* Input */
+    .input {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font); font-size: 14px;
+      outline: none; transition: border-color .15s;
+    }
+    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,141,238,.15); }
+    .input::placeholder { color: var(--text3); }
+    .input-mono { font-family: var(--mono); font-size: 13px; letter-spacing: .03em; }
+
+    /* Card */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+
+    /* Tag */
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    }
+    .tag-blue   { background: rgba(91,141,238,.15); color: var(--accent); }
+    .tag-purple { background: rgba(155,109,255,.15); color: var(--accent2); }
+    .tag-green  { background: rgba(78,203,141,.15); color: var(--success); }
+    .tag-red    { background: rgba(224,82,96,.15);  color: var(--danger); }
+    .tag-yellow { background: rgba(245,166,35,.15); color: var(--warn); }
+    .tag-gray   { background: rgba(136,145,168,.12); color: var(--text2); }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.2);
+      border-top-color: currentColor; border-radius: 50%;
+      animation: spin .7s linear infinite; display: inline-block;
+    }
+
+    /* Layout */
+    .layout { display: flex; height: 100dvh; overflow: hidden; }
+    .sidebar {
+      width: 260px; flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 18px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
+    .logo-sub  { font-size: 11px; color: var(--text3); letter-spacing: .5px; text-transform: uppercase; }
+
+    .sidebar-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+
+    .note-item {
+      padding: 10px 12px; border-radius: 8px; cursor: pointer;
+      transition: background .12s; margin-bottom: 2px; position: relative;
+    }
+    .note-item:hover { background: var(--surface2); }
+    .note-item.active { background: rgba(91,141,238,.12); border: 1px solid rgba(91,141,238,.25); }
+    .note-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .note-preview { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .note-meta { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      height: 56px; display: flex; align-items: center; gap: 12px;
+      padding: 0 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Editor */
+    .editor-header { margin-bottom: 16px; }
+    .editor-title {
+      width: 100%; background: transparent; border: none; outline: none;
+      font-family: var(--font); font-size: 22px; font-weight: 700;
+      color: var(--text); padding: 0; margin-bottom: 10px;
+    }
+    .editor-title::placeholder { color: var(--text3); }
+    .editor-body {
+      width: 100%; min-height: 320px; background: transparent;
+      border: none; outline: none; resize: none;
+      font-family: var(--font); font-size: 15px; color: var(--text);
+      line-height: 1.7;
+    }
+    .editor-body::placeholder { color: var(--text3); }
+    .editor-body.mono { font-family: var(--mono); font-size: 13px; line-height: 1.8; }
+
+    .toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 0; border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    /* Auth page */
+    .auth-wrap {
+      min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: var(--bg);
+    }
+    .auth-card {
+      width: 100%; max-width: 400px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 32px;
+    }
+    .auth-logo { text-align: center; margin-bottom: 28px; }
+    .auth-logo-icon {
+      width: 56px; height: 56px; border-radius: 14px; margin: 0 auto 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center; font-size: 28px;
+    }
+    .auth-title { font-size: 22px; font-weight: 700; text-align: center; }
+    .auth-sub   { font-size: 14px; color: var(--text2); text-align: center; margin-top: 4px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-label { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 6px; display: block; }
+
+    .alert {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .alert-error   { background: rgba(224,82,96,.12); border: 1px solid rgba(224,82,96,.3); color: var(--danger); }
+    .alert-success { background: rgba(78,203,141,.12); border: 1px solid rgba(78,203,141,.3); color: var(--success); }
+    .alert-warn    { background: rgba(245,166,35,.12);  border: 1px solid rgba(245,166,35,.3);  color: var(--warn); }
+    .alert-info    { background: rgba(91,141,238,.12); border: 1px solid rgba(91,141,238,.3); color: var(--accent); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+      backdrop-filter: blur(4px);
+    }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; width: 100%; max-width: 480px;
+      animation: fadeIn .2s ease;
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .modal-sub   { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+
+    /* Category chips */
+    .chip-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .chip {
+      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--border); color: var(--text2);
+      background: transparent; transition: all .12s;
+    }
+    .chip:hover  { border-color: var(--accent); color: var(--accent); }
+    .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* Encrypted badge */
+    .enc-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+      background: rgba(155,109,255,.15); color: var(--accent2); letter-spacing: .5px;
+    }
+
+    /* Empty state */
+    .empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; text-align: center; color: var(--text2); padding: 40px;
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 8px; opacity: .5; }
+
+    /* Media grid */
+    .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 16px; }
+    .media-item {
+      position: relative; border-radius: 8px; overflow: hidden;
+      border: 1px solid var(--border); background: var(--surface2);
+      aspect-ratio: 1;
+    }
+    .media-item img { width: 100%; height: 100%; object-fit: cover; }
+    .media-item .media-remove {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(0,0,0,.7); color: #fff; border: none;
+      border-radius: 50%; width: 22px; height: 22px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .media-file {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); margin-top: 6px;
+    }
+    .media-file-name { font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Mobile responsive */
+    .mobile-sidebar-btn { display: none; }
+    .sidebar-overlay { display: none; }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
+        transform: translateX(-100%); transition: transform .25s ease;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.open {
+        display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 49;
+      }
+      .mobile-sidebar-btn { display: flex; }
+      .content { padding: 16px; }
+    }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+    /* Section label */
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text3); padding: 8px 12px 4px;
+    }
+
+    /* Copy confirm */
+    .copy-confirm { animation: pulse .5s ease; }
+
+    /* Setup page */
+    .setup-wrap {
+      min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: var(--bg);
+    }
+    .setup-card {
+      width: 100%; max-width: 560px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 32px;
+    }
+    .step-dots { display: flex; gap: 6px; margin-bottom: 24px; }
+    .step-dot {
+      height: 4px; flex: 1; border-radius: 2px; background: var(--border); transition: background .3s;
+    }
+    .step-dot.done { background: var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+  const { useState, useEffect, useRef, useCallback } = React;
+
+  // ─── CONFIG ────────────────────────────────────────────────────
+  // Replace these with your Supabase project values
+  const SUPABASE_URL = window.__SN_URL__  || localStorage.getItem('sn_url')  || '';
+  const SUPABASE_KEY = window.__SN_KEY__  || localStorage.getItem('sn_key')  || '';
+
+  let supabase = null;
+  function getSupabase() {
+    if (!supabase && SUPABASE_URL && SUPABASE_KEY) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+    return supabase;
+  }
+
+  // ─── CRYPTO helpers (AES-256-GCM, PBKDF2) ──────────────────────
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  async function deriveKey(password, saltBuf) {
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: saltBuf, iterations: 310000, hash: 'SHA-256' },
+      keyMat, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+  }
+
+  async function encryptText(plaintext, password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(password, salt);
+    const ct   = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+    const buf  = new Uint8Array(salt.length + iv.length + ct.byteLength);
+    buf.set(salt, 0); buf.set(iv, 16); buf.set(new Uint8Array(ct), 28);
+    return btoa(String.fromCharCode(...buf));
+  }
+
+  async function decryptText(b64, password) {
+    const buf  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const salt = buf.slice(0, 16);
+    const iv   = buf.slice(16, 28);
+    const ct   = buf.slice(28);
+    const key  = await deriveKey(password, salt);
+    const pt   = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    return dec.decode(pt);
+  }
+
+  // ─── CATEGORIES ────────────────────────────────────────────────
+  const CATEGORIES = [
+    { id: 'note',     label: 'Note',        icon: '📝', tag: 'tag-blue' },
+    { id: 'password', label: 'Password',    icon: '🔑', tag: 'tag-yellow' },
+    { id: 'seed',     label: 'Seed Phrase', icon: '🌱', tag: 'tag-purple' },
+    { id: 'finance',  label: 'Finance',     icon: '💳', tag: 'tag-green' },
+    { id: 'private',  label: 'Private',     icon: '🔒', tag: 'tag-red' },
+    { id: 'other',    label: 'Other',       icon: '📎', tag: 'tag-gray' },
+  ];
+
+  function getCat(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
+
+  // ─── ICONS (inline SVG) ────────────────────────────────────────
+  const Icon = ({ n, s = 16 }) => {
+    const icons = {
+      plus:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+      search: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+      trash:  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
+      save:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+      eye:    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+      eyeoff: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+      copy:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
+      lock:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+      unlock: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>,
+      menu:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+      logout: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+      img:    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+      attach: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>,
+      check:  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>,
+      shield: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+      file:   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>,
+    };
+    return icons[n] || null;
+  };
+
+  // ─── TOAST ─────────────────────────────────────────────────────
+  let _setToast = null;
+  function toast(msg, type = 'info', dur = 3000) { _setToast?.({ msg, type, id: Date.now() }); }
+
+  function Toast() {
+    const [t, setT] = useState(null);
+    _setToast = setT;
+    useEffect(() => { if (t) { const id = setTimeout(() => setT(null), t.dur || 3000); return () => clearTimeout(id); } }, [t]);
+    if (!t) return null;
+    const colors = { info: 'var(--accent)', success: 'var(--success)', error: 'var(--danger)', warn: 'var(--warn)' };
+    return (
+      <div style={{
+        position:'fixed', bottom:24, right:24, zIndex:999,
+        background:'var(--surface)', border:`1px solid ${colors[t.type]}`,
+        borderRadius:10, padding:'12px 18px', fontSize:14, color:'var(--text)',
+        boxShadow:'0 8px 32px rgba(0,0,0,.4)', animation:'fadeIn .2s ease',
+        maxWidth:320, display:'flex', alignItems:'center', gap:8
+      }}>
+        <span style={{color:colors[t.type], flexShrink:0}}>
+          {t.type==='success'?'✓':t.type==='error'?'✕':t.type==='warn'?'⚠':'ℹ'}
+        </span>
+        {t.msg}
+      </div>
+    );
+  }
+
+  // ─── SETUP PAGE ─────────────────────────────────────────────────
+  function SetupPage({ onSetup }) {
+    const [url, setUrl] = useState('');
+    const [key, setKey] = useState('');
+    const [step, setStep] = useState(0);
+    const [testing, setTesting] = useState(false);
+
+    async function handleConnect() {
+      if (!url || !key) return toast('Fill in both fields', 'warn');
+      setTesting(true);
+      try {
+        const sb = window.supabase.createClient(url.trim(), key.trim());
+        const { error } = await sb.auth.getSession();
+        if (error) throw error;
+        localStorage.setItem('sn_url', url.trim());
+        localStorage.setItem('sn_key', key.trim());
+        supabase = sb;
+        toast('Connected! Setting up database…', 'success');
+        // Create tables via RPC (requires SQL access) – show SQL for manual setup
+        setStep(2);
+      } catch(e) {
+        toast('Connection failed: ' + e.message, 'error');
+      }
+      setTesting(false);
+    }
+
+    if (step === 2) return (
+      <div className="setup-wrap">
+        <div className="setup-card fade-in">
+          <div className="step-dots">{[0,1,2].map(i=><div key={i} className={`step-dot ${i<=2?'done':''}`}/>)}</div>
+          <div style={{fontSize:32,marginBottom:12}}>🎉</div>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:8}}>Almost done!</h2>
+          <p style={{fontSize:14,color:'var(--text2)',marginBottom:20}}>
+            Run this SQL in your Supabase SQL Editor to create the notes table and storage bucket:
+          </p>
+          <pre style={{
+            background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,
+            padding:16,fontSize:12,fontFamily:'var(--mono)',overflowX:'auto',
+            color:'var(--text)',marginBottom:16,whiteSpace:'pre-wrap'
+          }}>{SQL_SETUP}</pre>
+          <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>onSetup()}>
+            Done — Open App
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="setup-wrap">
+        <div className="setup-card fade-in">
+          <div className="step-dots">{[0,1,2].map(i=><div key={i} className={`step-dot ${i<=step?'done':''}`}/>)}</div>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={{
+              width:56,height:56,borderRadius:14,margin:'0 auto 12px',
+              background:'linear-gradient(135deg,var(--accent),var(--accent2))',
+              display:'flex',alignItems:'center',justifyContent:'center',fontSize:28
+            }}>🔐</div>
+            <h2 style={{fontSize:20,fontWeight:700}}>Setup SecureNotes</h2>
+            <p style={{fontSize:14,color:'var(--text2)',marginTop:4}}>Connect your Supabase project to get started</p>
+          </div>
+
+          {step===0 && (
+            <>
+              <div className="alert alert-info" style={{marginBottom:20}}>
+                <Icon n="shield" s={16}/> SecureNotes uses <strong>Supabase</strong> as its backend. Your data is end-to-end encrypted before saving.
+              </div>
+              <ol style={{fontSize:13,color:'var(--text2)',lineHeight:2,marginBottom:20,paddingLeft:18}}>
+                <li>Go to <strong style={{color:'var(--accent)'}}>supabase.com</strong> and create a free account</li>
+                <li>Create a new project</li>
+                <li>Go to <strong style={{color:'var(--text)'}}>Settings → API</strong></li>
+                <li>Copy your <strong style={{color:'var(--text)'}}>Project URL</strong> and <strong style={{color:'var(--text)'}}>anon public key</strong></li>
+              </ol>
+              <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>setStep(1)}>
+                I have my keys →
+              </button>
+            </>
+          )}
+
+          {step===1 && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Supabase Project URL</label>
+                <input className="input" placeholder="https://xxxx.supabase.co" value={url} onChange={e=>setUrl(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Supabase Anon Key</label>
+                <input className="input input-mono" placeholder="eyJhbGci..." value={key} onChange={e=>setKey(e.target.value)} />
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn btn-ghost" onClick={()=>setStep(0)}>← Back</button>
+                <button className="btn btn-primary" style={{flex:1}} onClick={handleConnect} disabled={testing}>
+                  {testing ? <><span className="spinner"/>Testing…</> : 'Connect & Continue →'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const SQL_SETUP = `-- Run this in Supabase SQL Editor
+
+-- Notes table
+create table if not exists notes (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users(id) on delete cascade not null,
+  title       text not null default 'Untitled',
+  body        text,
+  category    text default 'note',
+  is_encrypted boolean default false,
+  attachments jsonb default '[]',
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
+);
+
+-- Row-level security
+alter table notes enable row level security;
+
+create policy "Users manage own notes"
+  on notes for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Storage bucket for attachments
+insert into storage.buckets (id, name, public)
+  values ('note-attachments', 'note-attachments', false)
+  on conflict do nothing;
+
+create policy "Users manage own files"
+  on storage.objects for all
+  using (auth.uid()::text = (storage.foldername(name))[1])
+  with check (auth.uid()::text = (storage.foldername(name))[1]);`;
+
+  // ─── AUTH PAGE ─────────────────────────────────────────────────
+  function AuthPage({ onAuth }) {
+    const [mode, setMode] = useState('login'); // login | signup | forgot
+    const [email, setEmail] = useState('');
+    const [pass, setPass] = useState('');
+    const [showPass, setShowPass] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [msg, setMsg] = useState(null);
+
+    async function handleSubmit() {
+      setMsg(null); setLoading(true);
+      const sb = getSupabase();
+      try {
+        if (mode === 'login') {
+          const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+          if (error) throw error;
+          onAuth(data.user);
+        } else if (mode === 'signup') {
+          const { error } = await sb.auth.signUp({ email, password: pass });
+          if (error) throw error;
+          setMsg({ type: 'success', text: 'Account created! Check your email to confirm, then sign in.' });
+          setMode('login');
+        } else {
+          const { error } = await sb.auth.resetPasswordForEmail(email);
+          if (error) throw error;
+          setMsg({ type: 'success', text: 'Password reset link sent to your email.' });
+        }
+      } catch(e) {
+        setMsg({ type: 'error', text: e.message });
+      }
+      setLoading(false);
+    }
+
+    return (
+      <div className="auth-wrap">
+        <div className="auth-card fade-in">
+          <div className="auth-logo">
+            <div className="auth-logo-icon">🔐</div>
+            <div className="auth-title">SecureNotes</div>
+            <div className="auth-sub">Your encrypted personal vault</div>
+          </div>
+
+          {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+          {mode !== 'forgot' && (
+            <div className="form-group">
+              <label className="form-label">Email address</label>
+              <input className="input" type="email" placeholder="you@example.com"
+                value={email} onChange={e=>setEmail(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&handleSubmit()} />
+            </div>
+          )}
+
+          {mode === 'forgot' && (
+            <div className="form-group">
+              <label className="form-label">Email address</label>
+              <input className="input" type="email" placeholder="you@example.com"
+                value={email} onChange={e=>setEmail(e.target.value)} />
+            </div>
+          )}
+
+          {mode !== 'forgot' && (
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div style={{position:'relative'}}>
+                <input className="input" type={showPass?'text':'password'}
+                  placeholder={mode==='signup'?'Min 6 characters':'Your password'}
+                  value={pass} onChange={e=>setPass(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&handleSubmit()}
+                  style={{paddingRight:42}} />
+                <button onClick={()=>setShowPass(!showPass)} style={{
+                  position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+                  background:'none',border:'none',color:'var(--text3)',cursor:'pointer'
+                }}>
+                  <Icon n={showPass?'eyeoff':'eye'} s={16}/>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button className="btn btn-primary" style={{width:'100%',marginBottom:12}} onClick={handleSubmit} disabled={loading}>
+            {loading ? <><span className="spinner"/>&nbsp;Please wait…</> :
+              mode==='login' ? 'Sign In' : mode==='signup' ? 'Create Account' : 'Send Reset Link'}
+          </button>
+
+          <div style={{textAlign:'center',fontSize:13,color:'var(--text2)'}}>
+            {mode==='login' && <>
+              <button onClick={()=>setMode('forgot')} style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:13}}>Forgot password?</button>
+              &nbsp;·&nbsp;
+              <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:13}}>Create account</button>
+            </>}
+            {mode==='signup' && <>
+              Already have an account?&nbsp;
+              <button onClick={()=>setMode('login')} style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:13}}>Sign in</button>
+            </>}
+            {mode==='forgot' && <>
+              <button onClick={()=>setMode('login')} style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:13}}>← Back to sign in</button>
+            </>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── ENCRYPT MODAL ─────────────────────────────────────────────
+  function EncryptModal({ note, onClose, onSave }) {
+    const [pass, setPass] = useState('');
+    const [pass2, setPass2] = useState('');
+    const [show, setShow] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    async function handleEncrypt() {
+      if (pass.length < 4) return toast('Passphrase must be at least 4 characters', 'warn');
+      if (pass !== pass2) return toast('Passphrases do not match', 'error');
+      setLoading(true);
+      try {
+        const encBody = await encryptText(note.body || '', pass);
+        await onSave({ ...note, body: encBody, is_encrypted: true });
+        toast('Note encrypted successfully', 'success');
+        onClose();
+      } catch(e) { toast('Encryption failed: ' + e.message, 'error'); }
+      setLoading(false);
+    }
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="modal-title">🔒 Encrypt this Note</div>
+          <div className="modal-sub">Set a passphrase to encrypt the note content. You'll need it to view the content later.</div>
+          <div className="alert alert-warn">⚠️ If you forget your passphrase, the content <strong>cannot be recovered</strong>.</div>
+          <div className="form-group">
+            <label className="form-label">Passphrase</label>
+            <div style={{position:'relative'}}>
+              <input className="input" type={show?'text':'password'} placeholder="Enter passphrase"
+                value={pass} onChange={e=>setPass(e.target.value)} style={{paddingRight:42}}/>
+              <button onClick={()=>setShow(!show)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--text3)',cursor:'pointer'}}>
+                <Icon n={show?'eyeoff':'eye'} s={16}/>
+              </button>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Confirm Passphrase</label>
+            <input className="input" type={show?'text':'password'} placeholder="Re-enter passphrase"
+              value={pass2} onChange={e=>setPass2(e.target.value)}/>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" style={{flex:1}} onClick={handleEncrypt} disabled={loading}>
+              {loading?<><span className="spinner"/>Encrypting…</>:<><Icon n="lock" s={14}/>Encrypt</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── DECRYPT MODAL ─────────────────────────────────────────────
+  function DecryptModal({ note, onClose, onDecrypted }) {
+    const [pass, setPass] = useState('');
+    const [show, setShow] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    async function handleDecrypt() {
+      setLoading(true);
+      try {
+        const plain = await decryptText(note.body, pass);
+        onDecrypted(plain);
+        onClose();
+      } catch(e) { toast('Wrong passphrase or corrupted data', 'error'); }
+      setLoading(false);
+    }
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="modal-title">🔓 Decrypt Note</div>
+          <div className="modal-sub">Enter your passphrase to view the encrypted content.</div>
+          <div className="form-group">
+            <label className="form-label">Passphrase</label>
+            <div style={{position:'relative'}}>
+              <input className="input" type={show?'text':'password'} placeholder="Enter passphrase"
+                value={pass} onChange={e=>setPass(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&handleDecrypt()} style={{paddingRight:42}}/>
+              <button onClick={()=>setShow(!show)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--text3)',cursor:'pointer'}}>
+                <Icon n={show?'eyeoff':'eye'} s={16}/>
+              </button>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" style={{flex:1}} onClick={handleDecrypt} disabled={loading}>
+              {loading?<><span className="spinner"/>Decrypting…</>:<><Icon n="unlock" s={14}/>Decrypt</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── DELETE MODAL ───────────────────────────────────────────────
+  function DeleteModal({ onClose, onConfirm }) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:360}}>
+          <div className="modal-title">Delete Note</div>
+          <div className="modal-sub">This action cannot be undone. The note and all its attachments will be permanently deleted.</div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>Cancel</button>
+            <button className="btn btn-danger" style={{flex:1}} onClick={onConfirm}>Delete</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── NOTE EDITOR ───────────────────────────────────────────────
+  function NoteEditor({ note, user, onSave, onDelete, onNew }) {
+    const [title, setTitle]   = useState(note.title || '');
+    const [body, setBody]     = useState(note.body || '');
+    const [cat, setCat]       = useState(note.category || 'note');
+    const [saving, setSaving] = useState(false);
+    const [dirty, setDirty]   = useState(false);
+    const [showEnc, setShowEnc]   = useState(false);
+    const [showDec, setShowDec]   = useState(false);
+    const [showDel, setShowDel]   = useState(false);
+    const [decBody, setDecBody]   = useState(null); // temporarily decrypted body
+    const [monoMode, setMono]     = useState(['password','seed'].includes(note.category));
+    const [copied, setCopied]     = useState(false);
+    const [attachments, setAttachments] = useState(note.attachments || []);
+    const fileRef = useRef();
+
+    useEffect(() => {
+      setTitle(note.title || '');
+      setBody(note.body || '');
+      setCat(note.category || 'note');
+      setAttachments(note.attachments || []);
+      setDecBody(null);
+      setDirty(false);
+      setMono(['password','seed'].includes(note.category));
+    }, [note.id]);
+
+    useEffect(() => { setMono(['password','seed'].includes(cat)); }, [cat]);
+
+    function markDirty() { setDirty(true); }
+
+    async function save() {
+      setSaving(true);
+      await onSave({
+        ...note, title: title || 'Untitled', body,
+        category: cat, attachments
+      });
+      setDirty(false);
+      setSaving(false);
+    }
+
+    async function handleSaveEncrypted(updated) {
+      setSaving(true);
+      setBody(updated.body);
+      await onSave(updated);
+      setDirty(false);
+      setSaving(false);
+    }
+
+    async function copyBody() {
+      const text = note.is_encrypted ? (decBody || '') : body;
+      await navigator.clipboard.writeText(text);
+      setCopied(true); setTimeout(()=>setCopied(false), 1500);
+      toast('Copied to clipboard', 'success');
+    }
+
+    async function handleFileUpload(e) {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      const sb = getSupabase();
+      for (const file of files) {
+        const path = `${user.id}/${note.id || 'new'}-${Date.now()}-${file.name}`;
+        const { data, error } = await sb.storage.from('note-attachments').upload(path, file);
+        if (error) { toast('Upload failed: ' + error.message, 'error'); continue; }
+        const { data: { publicUrl } } = sb.storage.from('note-attachments').getPublicUrl(path);
+        const att = { name: file.name, path, url: publicUrl, type: file.type, size: file.size };
+        setAttachments(a => [...a, att]);
+        markDirty();
+        toast(`Uploaded: ${file.name}`, 'success');
+      }
+      e.target.value = '';
+    }
+
+    async function removeAttachment(idx) {
+      const att = attachments[idx];
+      const sb = getSupabase();
+      await sb.storage.from('note-attachments').remove([att.path]);
+      setAttachments(a => a.filter((_,i)=>i!==idx));
+      markDirty();
+    }
+
+    const isImg = (type) => type?.startsWith('image/');
+    const displayBody = note.is_encrypted ? (decBody !== null ? decBody : null) : body;
+
+    return (
+      <div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+        {/* Topbar */}
+        <div className="topbar">
+          <button className="btn-icon mobile-sidebar-btn" onClick={onNew} title="All notes">
+            <Icon n="menu" s={18}/>
+          </button>
+          <div style={{flex:1}}/>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            {note.is_encrypted && <span className="enc-badge"><Icon n="lock" s={10}/>ENCRYPTED</span>}
+            {dirty && <span style={{fontSize:12,color:'var(--text3)'}}>Unsaved changes</span>}
+            {note.is_encrypted && !decBody && (
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowDec(true)}>
+                <Icon n="unlock" s={14}/>Decrypt
+              </button>
+            )}
+            {!note.is_encrypted && (
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowEnc(true)} title="Encrypt">
+                <Icon n="lock" s={14}/>Encrypt
+              </button>
+            )}
+            <button className="btn btn-ghost btn-sm" onClick={copyBody} title="Copy content">
+              {copied ? <><Icon n="check" s={14}/>Copied!</> : <><Icon n="copy" s={14}/>Copy</>}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={saving||!dirty}>
+              {saving?<><span className="spinner" style={{width:14,height:14}}/>Saving…</>:<><Icon n="save" s={14}/>Save</>}
+            </button>
+            <button className="btn-icon" onClick={()=>setShowDel(true)} title="Delete note" style={{color:'var(--danger)'}}>
+              <Icon n="trash" s={16}/>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="content" style={{flex:1,overflowY:'auto'}}>
+          {/* Category chips */}
+          <div className="chip-wrap">
+            {CATEGORIES.map(c=>(
+              <button key={c.id} className={`chip ${cat===c.id?'active':''}`}
+                onClick={()=>{setCat(c.id);markDirty();}}>
+                {c.icon} {c.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Title */}
+          <input className="editor-title" placeholder="Note title…"
+            value={title} onChange={e=>{setTitle(e.target.value);markDirty();}} />
+
+          {/* Divider */}
+          <div className="divider"/>
+
+          {/* Body */}
+          {note.is_encrypted && decBody === null ? (
+            <div style={{
+              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+              gap:12,padding:'40px 0',color:'var(--text2)',textAlign:'center'
+            }}>
+              <div style={{fontSize:40,opacity:.4}}>🔒</div>
+              <div style={{fontWeight:600,color:'var(--text)'}}>This note is encrypted</div>
+              <div style={{fontSize:13}}>Enter your passphrase to view the content</div>
+              <button className="btn btn-primary" onClick={()=>setShowDec(true)}>
+                <Icon n="unlock" s={14}/>Unlock & View
+              </button>
+            </div>
+          ) : (
+            <textarea
+              className={`editor-body ${monoMode?'mono':''}`}
+              placeholder={`Start writing… ${cat==='password'?'(e.g. username: xxx, password: xxx)':cat==='seed'?'(e.g. word1 word2 word3 … word12/24)':''}`}
+              value={note.is_encrypted ? (decBody||'') : body}
+              onChange={e=>{
+                const v = e.target.value;
+                if (note.is_encrypted) setDecBody(v);
+                else { setBody(v); markDirty(); }
+              }}
+              readOnly={note.is_encrypted && decBody===null}
+            />
+          )}
+
+          {/* Mono mode toggle */}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:12}}>
+            <button className={`chip ${monoMode?'active':''}`} onClick={()=>setMono(!monoMode)}>
+              ⌨ Monospace
+            </button>
+            <label style={{fontSize:12,color:'var(--text3)'}}>
+              {cat==='seed'&&'💡 Good for seed phrases'} {cat==='password'&&'💡 Good for passwords'}
+            </label>
+          </div>
+
+          {/* Attachments */}
+          <div style={{marginTop:24}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--text2)'}}>Attachments</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>fileRef.current.click()}>
+                <Icon n="attach" s={13}/>Add file
+              </button>
+              <input ref={fileRef} type="file" multiple style={{display:'none'}} onChange={handleFileUpload}/>
+            </div>
+
+            {/* Image grid */}
+            {attachments.filter(a=>isImg(a.type)).length > 0 && (
+              <div className="media-grid">
+                {attachments.filter(a=>isImg(a.type)).map((a,i)=>(
+                  <div key={i} className="media-item">
+                    <img src={a.url} alt={a.name}/>
+                    <button className="media-remove" onClick={()=>removeAttachment(attachments.indexOf(a))}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Non-image files */}
+            {attachments.filter(a=>!isImg(a.type)).map((a,i)=>(
+              <div key={i} className="media-file">
+                <Icon n="file" s={16}/>
+                <span className="media-file-name">{a.name}</span>
+                <span style={{fontSize:12,color:'var(--text3)'}}>{(a.size/1024).toFixed(1)} KB</span>
+                <a href={a.url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Open</a>
+                <button className="btn-icon btn-sm" onClick={()=>removeAttachment(attachments.indexOf(a))}>
+                  <Icon n="trash" s={13}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Modals */}
+        {showEnc && <EncryptModal note={{...note,body}} onClose={()=>setShowEnc(false)} onSave={handleSaveEncrypted}/>}
+        {showDec && <DecryptModal note={note} onClose={()=>setShowDec(false)} onDecrypted={plain=>{setDecBody(plain);}}/>}
+        {showDel && <DeleteModal onClose={()=>setShowDel(false)} onConfirm={()=>{setShowDel(false);onDelete(note.id);}}/>}
+      </div>
+    );
+  }
+
+  // ─── MAIN APP ──────────────────────────────────────────────────
+  function App() {
+    const [setup, setSetup]     = useState(!localStorage.getItem('sn_url'));
+    const [user, setUser]       = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [notes, setNotes]     = useState([]);
+    const [active, setActive]   = useState(null);
+    const [search, setSearch]   = useState('');
+    const [filterCat, setFCat]  = useState('all');
+    const [sidebarOpen, setSO]  = useState(false);
+
+    useEffect(() => {
+      if (setup) { setLoading(false); return; }
+      const sb = getSupabase();
+      if (!sb) { setSetup(true); setLoading(false); return; }
+      sb.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user || null);
+        setLoading(false);
+        if (session?.user) loadNotes(session.user.id);
+      });
+      const { data: { subscription } } = sb.auth.onAuthStateChange((_e, session) => {
+        setUser(session?.user || null);
+        if (session?.user) loadNotes(session.user.id);
+        else setNotes([]);
+      });
+      return () => subscription.unsubscribe();
+    }, [setup]);
+
+    async function loadNotes(uid) {
+      const sb = getSupabase();
+      const { data, error } = await sb.from('notes').select('*')
+        .eq('user_id', uid).order('updated_at', { ascending: false });
+      if (error) { toast('Failed to load notes: ' + error.message, 'error'); return; }
+      setNotes(data || []);
+      if (data?.length && !active) setActive(data[0]);
+    }
+
+    async function saveNote(note) {
+      const sb = getSupabase();
+      const isNew = !note.id || note.id === 'new';
+      const payload = {
+        title: note.title, body: note.body, category: note.category,
+        is_encrypted: note.is_encrypted || false,
+        attachments: note.attachments || [],
+        updated_at: new Date().toISOString(), user_id: user.id
+      };
+      let saved;
+      if (isNew) {
+        const { data, error } = await sb.from('notes').insert([payload]).select().single();
+        if (error) { toast('Save failed: ' + error.message, 'error'); return; }
+        saved = data;
+        setNotes(n => [saved, ...n]);
+        setActive(saved);
+        toast('Note created', 'success');
+      } else {
+        const { data, error } = await sb.from('notes').update(payload).eq('id', note.id).select().single();
+        if (error) { toast('Save failed: ' + error.message, 'error'); return; }
+        saved = data;
+        setNotes(n => n.map(x => x.id === saved.id ? saved : x));
+        setActive(saved);
+        toast('Saved', 'success');
+      }
+    }
+
+    async function deleteNote(id) {
+      const sb = getSupabase();
+      await sb.from('notes').delete().eq('id', id);
+      const remaining = notes.filter(n => n.id !== id);
+      setNotes(remaining);
+      setActive(remaining[0] || null);
+      toast('Note deleted', 'info');
+    }
+
+    function newNote() {
+      const blank = { id: 'new', title: '', body: '', category: 'note', is_encrypted: false, attachments: [] };
+      setActive(blank);
+      setSO(false);
+    }
+
+    async function logout() {
+      await getSupabase().auth.signOut();
+      setUser(null); setNotes([]); setActive(null);
+    }
+
+    const filtered = notes.filter(n => {
+      const q = search.toLowerCase();
+      const matchQ = !q || n.title?.toLowerCase().includes(q) || n.body?.toLowerCase().includes(q);
+      const matchC = filterCat === 'all' || n.category === filterCat;
+      return matchQ && matchC;
+    });
+
+    function fmtDate(d) {
+      if (!d) return '';
+      const dt = new Date(d);
+      const now = new Date();
+      const diff = now - dt;
+      if (diff < 86400000) return dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+      if (diff < 604800000) return dt.toLocaleDateString([], { weekday:'short' });
+      return dt.toLocaleDateString([], { month:'short', day:'numeric' });
+    }
+
+    if (setup) return <SetupPage onSetup={()=>{window.location.reload();}} />;
+    if (loading) return (
+      <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
+        <div className="spinner" style={{width:32,height:32,borderWidth:3,borderTopColor:'var(--accent)'}}/>
+        <div style={{fontSize:14,color:'var(--text2)'}}>Loading SecureNotes…</div>
+      </div>
+    );
+    if (!user) return <AuthPage onAuth={u=>{setUser(u);loadNotes(u.id);}}/>;
+
+    return (
+      <div className="layout">
+        {/* Sidebar overlay (mobile) */}
+        <div className={`sidebar-overlay ${sidebarOpen?'open':''}`} onClick={()=>setSO(false)}/>
+
+        {/* Sidebar */}
+        <div className={`sidebar ${sidebarOpen?'open':''}`}>
+          <div className="sidebar-header">
+            <div className="logo">
+              <div className="logo-icon">🔐</div>
+              <div>
+                <div className="logo-text">SecureNotes</div>
+                <div className="logo-sub">Private Vault</div>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div style={{position:'relative'}}>
+              <div style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--text3)'}}>
+                <Icon n="search" s={14}/>
+              </div>
+              <input className="input" placeholder="Search notes…"
+                value={search} onChange={e=>setSearch(e.target.value)}
+                style={{paddingLeft:32,fontSize:13}}/>
+            </div>
+
+            {/* Category filter */}
+            <div style={{display:'flex',gap:4,marginTop:8,flexWrap:'wrap'}}>
+              <button className={`chip ${filterCat==='all'?'active':''}`} onClick={()=>setFCat('all')} style={{fontSize:11}}>All</button>
+              {CATEGORIES.map(c=>(
+                <button key={c.id} className={`chip ${filterCat===c.id?'active':''}`}
+                  onClick={()=>setFCat(c.id)} style={{fontSize:11}} title={c.label}>
+                  {c.icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sidebar-list">
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px 2px'}}>
+              <div className="section-label" style={{padding:0}}>{filtered.length} note{filtered.length!==1?'s':''}</div>
+              <button className="btn-icon" onClick={newNote} title="New note" style={{width:26,height:26,padding:4}}>
+                <Icon n="plus" s={14}/>
+              </button>
+            </div>
+
+            {filtered.length === 0 && (
+              <div style={{padding:'20px 12px',textAlign:'center',fontSize:13,color:'var(--text3)'}}>
+                {search ? 'No matching notes' : 'No notes yet. Create one!'}
+              </div>
+            )}
+
+            {filtered.map(n => {
+              const c = getCat(n.category);
+              return (
+                <div key={n.id} className={`note-item ${active?.id===n.id?'active':''}`}
+                  onClick={()=>{setActive(n);setSO(false);}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                    <span style={{fontSize:13}}>{c.icon}</span>
+                    <div className="note-title" style={{flex:1}}>{n.title||'Untitled'}</div>
+                    {n.is_encrypted && <Icon n="lock" s={11}/>}
+                  </div>
+                  <div className="note-preview">
+                    {n.is_encrypted ? '🔒 Encrypted content' : (n.body?.slice(0,60)||'No content')}
+                  </div>
+                  <div className="note-meta">{fmtDate(n.updated_at)}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="sidebar-footer">
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{
+                width:30,height:30,borderRadius:'50%',
+                background:'linear-gradient(135deg,var(--accent),var(--accent2))',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:14,fontWeight:600,flexShrink:0
+              }}>{user.email?.[0].toUpperCase()}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email}</div>
+                <div style={{fontSize:11,color:'var(--text3)'}}>Signed in</div>
+              </div>
+              <button className="btn-icon" onClick={logout} title="Sign out"><Icon n="logout" s={16}/></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main */}
+        <div className="main">
+          {active ? (
+            <NoteEditor
+              key={active.id}
+              note={active}
+              user={user}
+              onSave={saveNote}
+              onDelete={deleteNote}
+              onNew={()=>setSO(true)}
+            />
+          ) : (
+            <>
+              <div className="topbar">
+                <button className="btn-icon mobile-sidebar-btn" onClick={()=>setSO(true)}>
+                  <Icon n="menu" s={18}/>
+                </button>
+                <div style={{flex:1}}/>
+                <button className="btn btn-primary btn-sm" onClick={newNote}>
+                  <Icon n="plus" s={14}/>New Note
+                </button>
+              </div>
+              <div className="empty fade-in">
+                <div className="empty-icon">📝</div>
+                <div style={{fontWeight:600,fontSize:16,color:'var(--text)'}}>No note selected</div>
+                <div style={{fontSize:14}}>Select a note from the sidebar or create a new one</div>
+                <button className="btn btn-primary" onClick={newNote}>
+                  <Icon n="plus" s={14}/>Create Note
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <Toast/>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
